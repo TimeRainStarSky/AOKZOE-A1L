@@ -1,0 +1,2 @@
+bcdedit /set {fwbootmgr} bootsequence {bootmgr}
+shutdown -r -t 0

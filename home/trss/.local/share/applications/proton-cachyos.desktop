@@ -1,0 +1,6 @@
+[Desktop Entry]
+Exec=/home/trss/.local/bin/proton-cachyos
+MimeType=application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-bat;application/x-ms-shortcut;
+Name=proton-cachyos
+NoDisplay=true
+Type=Application

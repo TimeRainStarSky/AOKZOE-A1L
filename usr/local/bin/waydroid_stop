@@ -1,0 +1,4 @@
+#!/bin/sh -e
+waydroid session stop
+waydroid container stop
+systemctl stop waydroid-container

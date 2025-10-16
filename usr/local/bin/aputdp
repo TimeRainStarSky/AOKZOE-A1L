@@ -1,0 +1,2 @@
+#!/bin/sh
+/home/trss/homebrew/plugins/SimpleDeckyTDP/bin/ryzenadj --stapm-limit "$1" --fast-limit "$1" --slow-limit "$1" --tctl-temp 95 --apu-skin-temp 95 --dgpu-skin-temp 95 --apu-slow-limit "$1"

@@ -1,0 +1,1 @@
+%wheel ALL=(ALL) NOPASSWD: /usr/bin/psd-overlay-helper, /usr/local/bin/controller_add, /usr/local/bin/waydroid_stop, /usr/local/bin/reboot_windows, /usr/local/bin/aputdp, /usr/local/bin/screentouch

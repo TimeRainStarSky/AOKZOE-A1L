@@ -1,0 +1,2 @@
+#!/bin/sh
+STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.local/share/Steam STEAM_COMPAT_DATA_PATH=~/.local/share/Steam/steamapps/compatdata/3816849509 exec mangohud ~/.local/share/Steam/ubuntu12_32/reaper SteamLaunch AppId=3816849509 -- ~/.local/share/Steam/steamapps/common/SteamLinuxRuntime_sniper/_v2-entry-point --verb=waitforexitandrun -- ~/.local/share/Steam/steamapps/common/Proton\ -\ Experimental/proton waitforexitandrun "$@"

@@ -1,0 +1,11 @@
+[Added Associations]
+application/vnd.microsoft.portable-executable=proton-cachyos.desktop;proton-experimental.desktop;
+application/x-bat=proton-cachyos.desktop;proton-experimental.desktop;org.kde.kate.desktop;org.kde.kwrite.desktop;micro.desktop;vim.desktop;
+application/x-ms-shortcut=proton-cachyos.desktop;proton-experimental.desktop;
+application/x-msdownload=proton-cachyos.desktop;proton-experimental.desktop;
+
+[Default Applications]
+application/vnd.microsoft.portable-executable=proton-cachyos.desktop;
+application/x-bat=proton-cachyos.desktop;
+application/x-ms-shortcut=proton-cachyos.desktop;
+application/x-msdownload=proton-cachyos.desktop;
