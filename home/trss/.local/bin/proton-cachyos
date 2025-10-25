@@ -1,2 +1,2 @@
 #!/bin/sh
-STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.local/share/Steam STEAM_COMPAT_DATA_PATH=~/.local/share/Steam/steamapps/compatdata/3014028725 PROTON_USE_NTSYNC=1 PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 exec mangohud ~/.local/share/Steam/ubuntu12_32/reaper SteamLaunch AppId=3014028725 -- /usr/share/steam/compatibilitytools.d/proton-cachyos/proton waitforexitandrun "$@"
+STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.local/share/Steam STEAM_COMPAT_DATA_PATH=~/.local/share/Steam/steamapps/compatdata/3014028725 PROTON_USE_NTSYNC=1 PROTON_LOCAL_SHADER_CACHE=1 PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 exec mangohud ~/.local/share/Steam/ubuntu12_32/reaper SteamLaunch AppId=3014028725 -- /usr/share/steam/compatibilitytools.d/proton-cachyos/proton waitforexitandrun "$@"

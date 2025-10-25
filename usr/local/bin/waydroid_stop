@@ -2,3 +2,4 @@
 waydroid session stop
 waydroid container stop
 systemctl stop waydroid-container
+killall adb||:
