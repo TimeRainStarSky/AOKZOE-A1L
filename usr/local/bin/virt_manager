@@ -1,0 +1,12 @@
+#!/bin/sh -e
+if [ "$1" == "start" ]; then
+  systemctl start libvirtd
+  virsh net-start default||:
+elif [ "$1" == "stop" ]; then
+  virsh net-destroy default||:
+  systemctl stop libvirtd{,.socket}
+else
+  trap 'sudo "$0" stop' EXIT
+  sudo "$0" start
+  virt-manager
+fi

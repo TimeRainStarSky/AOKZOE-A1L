@@ -1,0 +1,26 @@
+#!/bin/sh -e
+if [ "$1" == "controller_add" ]; then
+  echo add|tee /sys/devices/virtual/input/input*/event*/uevent
+elif [ "$1" == "stop" ]; then
+  waydroid session stop
+  waydroid container stop
+  systemctl stop waydroid-container
+  pkill -x adb||:
+elif [ "$1" == "swiftshader" ]; then
+  if grep -q '^ro.hardware.egl=swiftshader$' /var/lib/waydroid/waydroid_base.prop; then
+    waydroid upgrade -o
+  else
+    sed -i 's/^ro.hardware.gralloc=.*$/ro.hardware.gralloc=default/;s/^ro.hardware.egl=.*$/ro.hardware.egl=swiftshader/' /var/lib/waydroid/waydroid_base.prop
+  fi
+else
+  grep -q '^ro.hardware.egl=swiftshader$' /var/lib/waydroid/waydroid_base.prop && SWIFTSHADER="硬" || SWIFTSHADER="软"
+  kdialog --yesnocancel "Waydroid 管理器" --yes-label "打开手柄" --no-label "关闭手柄" --cancel-label "切换${SWIFTSHADER}解"||STATUS=$?
+  if [ -z "$STATUS" ];then
+    (sleep 15;sudo "$0" controller_add)&
+  elif [ "$STATUS" = 2 ];then
+    sudo "$0" swiftshader
+    exec "$0"
+  fi
+  trap 'sudo "$0" stop' EXIT
+  cage -- sh -c "wlr-randr --output X11-1 --custom-mode $(xdpyinfo|awk '/dimensions/{print $2}')&&exec waydroid show-full-ui"
+fi

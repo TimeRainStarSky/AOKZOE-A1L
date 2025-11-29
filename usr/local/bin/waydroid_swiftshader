@@ -1,8 +1,0 @@
-#!/bin/sh -e
-if grep -q '^ro.hardware.egl=swiftshader$' /var/lib/waydroid/waydroid_base.prop;then
-  echo "正在切换到硬解……"
-  waydroid upgrade -o
-else
-  echo "正在切换到软解……"
-  sed -i 's/^ro.hardware.gralloc=.*$/ro.hardware.gralloc=default/;s/^ro.hardware.egl=.*$/ro.hardware.egl=swiftshader/' /var/lib/waydroid/waydroid_base.prop
-fi

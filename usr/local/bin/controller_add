@@ -1,2 +1,0 @@
-#!/bin/sh
-echo add|tee /sys/devices/virtual/input/input*/event*/uevent

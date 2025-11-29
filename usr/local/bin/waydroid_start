@@ -1,3 +1,0 @@
-#!/bin/sh
-(sleep 15;sudo controller_add)&
-exec cage -- sh -c "wlr-randr --output X11-1 --custom-mode $(xdpyinfo|awk '/dimensions/{print $2}')&&exec waydroid show-full-ui"

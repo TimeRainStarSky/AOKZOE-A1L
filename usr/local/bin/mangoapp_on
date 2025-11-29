@@ -1,8 +1,0 @@
-#!/bin/sh
-for i in /tmp/mangoapp.????????; do
-  [ -s $i ] || exit
-  for j in /tmp/mangohud.????????; do
-    [ -s $j ] && ln -sf $j $i
-    break
-  done
-done
