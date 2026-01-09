@@ -304,7 +304,7 @@ fi
 MANGOAPP_CONFIGFILE=$(mktemp /tmp/mangoapp.XXXXXXXX)
 ln -sf $MANGOHUD_CONFIGFILE $MANGOAPP_CONFIGFILE
 if command -v mangoapp >/dev/null; then
-	(while :; do
+	(while sleep 1; do
 		MANGOHUD_CONFIGFILE=$MANGOAPP_CONFIGFILE mangoapp
 	done) &
 fi
