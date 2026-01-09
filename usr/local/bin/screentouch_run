@@ -1,0 +1,4 @@
+#!/bin/sh
+sudo screentouch -d3 /dev/input/event*&
+trap "kill $!" EXIT
+"$@"

@@ -40,6 +40,7 @@
 1. [CachyOS](https://cachyos.org)
 1. [SimpleDeckyTDP](https://github.com/aarron-lee/SimpleDeckyTDP)
 1. [InputPlumber](https://github.com/ShadowBlip/InputPlumber)
+1. [screentouch](../../screentouch)
 1. [旧版包](https://github.com/SkorionOS/skorionos/blob/matrix/manifest)
 
 </details>
