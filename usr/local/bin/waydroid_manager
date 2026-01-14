@@ -9,6 +9,7 @@ elif [ "$1" == "stop" ]; then
 elif [ "$1" == "swiftshader" ]; then
   if grep -q '^ro.hardware.egl=swiftshader$' /var/lib/waydroid/waydroid_base.prop; then
     waydroid upgrade -o
+    sed -i 's/^ro.hardware.egl=.*$/ro.hardware.egl=angle/' /var/lib/waydroid/waydroid_base.prop
   else
     sed -i 's/^ro.hardware.gralloc=.*$/ro.hardware.gralloc=default/;s/^ro.hardware.egl=.*$/ro.hardware.egl=swiftshader/' /var/lib/waydroid/waydroid_base.prop
   fi
