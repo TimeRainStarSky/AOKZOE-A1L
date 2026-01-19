@@ -1,2 +1,2 @@
 Defaults env_keep += "QT_SCALE_FACTOR"
-%wheel ALL=(ALL) NOPASSWD: /usr/bin/psd-overlay-helper, /usr/local/bin/waydroid_manager, /usr/local/bin/reboot_windows, /usr/local/bin/aputdp, /usr/local/bin/screentouch, /usr/local/bin/virt_manager
+%wheel ALL=(ALL) NOPASSWD: /usr/bin/psd-overlay-helper, /usr/local/bin/waydroid_manager, /usr/local/bin/reboot_windows, /usr/local/bin/aputdp, /usr/local/bin/screentouch, /usr/local/bin/virt_manager, /usr/local/bin/disk_run
