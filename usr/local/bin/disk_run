@@ -3,12 +3,12 @@ blk="$1"
 shift
 if [ "$1" == "start" ]; then
   mkdir /tmp/$blk
-  mount /{dev,tmp}/$blk
+  mount -o "uid=$SUDO_UID,gid=$SUDO_GID" /{dev,tmp}/$blk
 elif [ "$1" == "stop" ]; then
-  umount /tmp/$blk
+  umount -l /tmp/$blk
   rmdir /tmp/$blk
 else
-  trap 'cd;sudo "$0" $blk stop' EXIT
+  trap 'sudo "$0" $blk stop' EXIT
   sudo "$0" $blk start
   cd "/tmp/$blk/$1"
   shift
