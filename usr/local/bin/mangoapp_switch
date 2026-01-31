@@ -1,23 +1,12 @@
 #!/bin/sh
 shopt -s nullglob
 MANGOAPP=(/tmp/mangoapp.????????)
-MANGOHUD=(/tmp/mangohud.????????)
-if [ -L "${MANGOAPP[0]}" ]; then
-  for i in "${MANGOAPP[@]}"; do
-    [ -s "$i" ] || exit
-    rm -f "$i"
-    echo preset=0 > "$i"
-  done
+if grep -q "^preset=5$" "$MANGOHUD_CONFIGFILE"; then
   pkill -x mangoapp
-  for i in "${MANGOHUD[@]}"; do
-    [ -s "$i" ] && sed -i "s/preset=[0-9]/preset=5/" "$i"
-  done
+  sed -i "s/preset=[0-9]/preset=3/" "$MANGOHUD_CONFIGFILE"
 else
+  sed -i "s/preset=[0-9]/preset=5/" "$MANGOHUD_CONFIGFILE"
   for i in "${MANGOAPP[@]}"; do
-    [ -s "$i" ] || exit
-    for j in "${MANGOHUD[@]}"; do
-      [ -s $j ] && ln -sf $j "$i"
-      break
-    done
+    socat -t 0 - GOPEN:$i <<< ""
   done
 fi

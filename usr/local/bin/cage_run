@@ -1,0 +1,2 @@
+#!/bin/sh
+exec cage -- sh -c "wlr-randr --output X11-1 --scale 2 --custom-mode $(xdpyinfo|awk '/dimensions/{print $2}')&&exec $*"

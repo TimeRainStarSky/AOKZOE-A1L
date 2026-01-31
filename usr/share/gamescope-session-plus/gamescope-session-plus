@@ -301,13 +301,12 @@ if command -v /usr/bin/ibus-daemon >/dev/null; then
 fi
 
 # If we have mangoapp binary start it
-#MANGOAPP_CONFIGFILE=$(mktemp /tmp/mangoapp.XXXXXXXX)
-#ln -sf $MANGOHUD_CONFIGFILE $MANGOAPP_CONFIGFILE
-#if command -v mangoapp >/dev/null; then
-#	(while sleep 1; do
-#		MANGOHUD_CONFIGFILE=$MANGOAPP_CONFIGFILE mangoapp
-#	done) &
-#fi
+(P=$(mktemp -u /tmp/mangoapp.XXXXXXXX)
+mkfifo $P
+while :; do
+	read < $P
+	mangoapp
+done) &
 
 # Handle Galileo Mura Correction
 # This is applied here and not in device-quirks because it must be called after gamescope has started.

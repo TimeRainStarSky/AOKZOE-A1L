@@ -1,0 +1,15 @@
+#!/bin/sh -e
+set -m
+blk="$1"
+shift
+trap 'set +e;sudo disk_run $blk stop;kill -9 -- -$pid -$spid -$slpid' EXIT
+sudo disk_run $blk start
+cd "/tmp/$blk/$1"
+shift
+"$@"&
+pid=$!
+strace -f -e trace=process -o /dev/null -p $pid&
+spid=$!
+(sleep 2m;kill -9 $spid)&
+slpid=$!
+wait $pid
