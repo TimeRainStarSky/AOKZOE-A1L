@@ -7,6 +7,6 @@ if grep -q "^preset=5$" "$MANGOHUD_CONFIGFILE"; then
 else
   sed -i "s/preset=[0-9]/preset=5/" "$MANGOHUD_CONFIGFILE"
   for i in "${MANGOAPP[@]}"; do
-    socat -t 0 - GOPEN:$i <<< ""
+    socat -t 1 - GOPEN:$i <<< ""
   done
 fi

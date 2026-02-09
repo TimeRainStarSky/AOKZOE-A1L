@@ -1,0 +1,6 @@
+#!/bin/sh -e
+dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+ln -s /opt/nwjs/* "$PWD"/{www,package.json} "$dir"
+cp /opt/nwjs/nw "$dir/game"
+"$dir/game" --enable-features=DefaultANGLEVulkan,Vulkan,VulkanFromANGLE "$@"
