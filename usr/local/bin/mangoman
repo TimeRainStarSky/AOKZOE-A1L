@@ -1,0 +1,23 @@
+#!/bin/sh -e
+start() {
+  sed -i "s/preset=[0-9]/preset=5/" "$MANGOHUD_CONFIGFILE"
+  systemctl start --user gamescope-mangoapp
+}
+stop() {
+  systemctl stop --user gamescope-mangoapp
+  sed -i "s/preset=[0-9]/preset=3/" "$MANGOHUD_CONFIGFILE"
+}
+if [ "$1" = "start" ]; then
+  start
+elif [ "$1" = "stop" ]; then
+  stop
+elif [ "$1" = "run" ]; then
+  trap stop EXIT
+  start
+  shift
+  "$@"
+elif grep -q "^preset=5$" "$MANGOHUD_CONFIGFILE"; then
+  stop
+else
+  start
+fi
