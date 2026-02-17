@@ -5,7 +5,6 @@ elif [ "$1" == "stop" ]; then
   waydroid session stop
   waydroid container stop
   systemctl stop waydroid-container
-  mangoman stop
   pkill -x adb||:
 elif [ "$1" == "swiftshader" ]; then
   if grep -q '^ro.hardware.egl=swiftshader$' /var/lib/waydroid/waydroid_base.prop; then
@@ -24,6 +23,6 @@ else
     exec "$0"
   fi
   mangoman start
-  trap 'sudo "$0" stop' EXIT
+  trap 'mangoman stop;sudo "$0" stop' EXIT
   cage -- sh -c "wlr-randr --output X11-1 --custom-mode $(xdpyinfo|awk '/dimensions/{print $2}')&&exec waydroid show-full-ui"
 fi
