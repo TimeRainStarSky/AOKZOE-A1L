@@ -1,2 +1,1 @@
-bcdedit /set {fwbootmgr} bootsequence {bootmgr}
-shutdown -r -t 0
+bcdedit /set {fwbootmgr} bootsequence {bootmgr}&&shutdown -r -t 0
