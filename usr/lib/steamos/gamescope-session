@@ -19,7 +19,7 @@ export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
 
 export STEAM_MANGOAPP_PRESETS_SUPPORTED=1
 export STEAM_USE_MANGOAPP=1
-export MANGOHUD_CONFIGFILE="$(mktemp -u /tmp/mangohud.XXXXXXX)"
+export MANGOHUD_CONFIGFILE="$(mktemp -u /tmp/mangohud.XXXXXXXX)"
 
 export STEAM_USE_DYNAMIC_VRS=1
 export RADV_FORCE_VRS_CONFIG_FILE="$(mktemp /tmp/radv_vrs.XXXXXXXX)"
@@ -129,6 +129,9 @@ export STEAM_GAMESCOPE_VIRTUAL_WHITE=1
 
 # HDMI-CEC support
 export STEAM_ENABLE_CEC=0
+
+# One-cgroup-per-game for VRAM management
+export STEAM_LAUNCH_WRAPPER_SCOPE=1
 
 # Set input method modules for Qt/GTK that will show the Steam keyboard
 export QT_IM_MODULE=steam
