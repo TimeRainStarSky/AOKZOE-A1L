@@ -1,2 +1,0 @@
-#!/bin/sh
-PROTON_USE_NTSYNC=1 PROTON_LOCAL_SHADER_CACHE=1 HOST_LC_ALL=zh_CN.UTF-8 MANGOHUD=1 exec /usr/lib/steam/steam "$@"
