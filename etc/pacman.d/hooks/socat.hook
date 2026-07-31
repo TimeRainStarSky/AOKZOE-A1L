@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = socat
+
+[Action]
+Description = Set CAP_NET_BIND_SERVICE to socat
+When = PostTransaction
+Exec = /usr/bin/sh -c '/usr/bin/setcap cap_net_bind_service=+ep "$(readlink -f /usr/bin/socat)"'
