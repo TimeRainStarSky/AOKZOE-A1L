@@ -523,6 +523,7 @@ def __download_upscaler_files(
         file = shared_dir.joinpath(dst)
         temp = shared_dir.joinpath(dst + '.old')
         target = Path(prefix_dir, dst)
+        downloaded = False
         try:
             # 共享目录中的文件已存在且校验一致时直接复用
             need_download = True
@@ -544,11 +545,14 @@ def __download_upscaler_files(
                 file.parent.mkdir(parents=True, exist_ok=True)
                 __download_extract_zip(items[dst], cache_dir, file)
                 temp.unlink(missing_ok=True)
+                downloaded = True
             __create_symlink(target, file)
         except Exception as e:
             log.crit(f'Error while downloading file "{filename}"')
             log.crit(str(e))
-            file.unlink(missing_ok=True)
+            # 只清理本次下载的文件，避免删除已被其它容器复用的共享文件
+            if downloaded:
+                file.unlink(missing_ok=True)
             if temp.exists() or temp.is_symlink():
                 temp.rename(file)
             return False
