@@ -641,18 +641,30 @@ def __download_component_files(
                         prefix_file.unlink()
                     prefix_file.mkdir(parents=True, exist_ok=True)
                     continue
-                if name.endswith('.ini') and local_file.exists():
-                    local_file.rename(local_file.parent.joinpath(local_file.name + '.old'))
-                tar_fd.extract(member, str(shared_opti_dir))
                 if name.endswith('.ini'):
+                    if local_file.exists():
+                        local_file.rename(local_file.parent.joinpath(local_file.name + '.old'))
+                    tar_fd.extract(member, str(shared_opti_dir))
                     # .ini 是每容器独立的配置文件，复制而不是链接，
                     # 避免 PROTON_OPTISCALER_CONFIG 写入时穿透到共享副本
                     if prefix_file.is_symlink():
                         prefix_file.unlink()
                     if not prefix_file.exists():
                         shutil.copy2(local_file, prefix_file)
-                else:
-                    __create_symlink(prefix_file, local_file)
+                    continue
+                # 共享文件内容已一致时跳过重写，避免原地覆盖正被其它游戏映射的 dll
+                if local_file.is_file() and not local_file.is_symlink():
+                    expected_md5 = item['md5_hash'].get(name)
+                    if expected_md5:
+                        with open(local_file, 'rb') as local_fd:
+                            local_md5 = hashlib.md5(local_fd.read()).hexdigest()
+                        if local_md5 == expected_md5.lower():
+                            __create_symlink(prefix_file, local_file)
+                            continue
+                if local_file.is_symlink() and not local_file.exists():
+                    local_file.unlink()
+                tar_fd.extract(member, str(shared_opti_dir))
+                __create_symlink(prefix_file, local_file)
 
         version = {}
         for name in item['md5_hash']:
