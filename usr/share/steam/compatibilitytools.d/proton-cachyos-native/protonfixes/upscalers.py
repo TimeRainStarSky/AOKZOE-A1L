@@ -5,6 +5,7 @@ import hashlib
 import json
 import lzma
 import os
+import shutil
 import tarfile
 import urllib.request
 from functools import lru_cache
@@ -639,7 +640,15 @@ def __download_component_files(
                 if name.endswith('.ini') and local_file.exists():
                     local_file.rename(local_file.parent.joinpath(local_file.name + '.old'))
                 tar_fd.extract(member, str(shared_opti_dir))
-                __create_symlink(prefix_file, local_file)
+                if name.endswith('.ini'):
+                    # .ini 是每容器独立的配置文件，复制而不是链接，
+                    # 避免 PROTON_OPTISCALER_CONFIG 写入时穿透到共享副本
+                    if prefix_file.is_symlink():
+                        prefix_file.unlink()
+                    if not prefix_file.exists():
+                        shutil.copy2(local_file, prefix_file)
+                else:
+                    __create_symlink(prefix_file, local_file)
 
         version = {}
         for name in item['md5_hash']:
