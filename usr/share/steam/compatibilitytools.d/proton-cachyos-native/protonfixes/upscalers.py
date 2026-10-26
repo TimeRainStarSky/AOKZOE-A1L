@@ -11,11 +11,12 @@ from functools import lru_cache
 from urllib.error import HTTPError, URLError
 import zipfile
 from pathlib import Path
-from typing import Callable, Union
+from typing import Union
 from urllib.parse import unquote, urlparse
 
 from .logger import log
 from .config import config
+
 
 def __get_upscaler_dir(compat_dir: str) -> Path:
     """获取共享 upscaler 目录（位于所有容器的上级目录 compatdata 级别）"""
@@ -23,11 +24,20 @@ def __get_upscaler_dir(compat_dir: str) -> Path:
     shared_dir.mkdir(parents=True, exist_ok=True)
     return shared_dir
 
+
 def __create_symlink(path: Path, target: Path) -> None:
     """在容器前缀中创建指向共享文件的符号链接"""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
     path.symlink_to(os.path.relpath(target.resolve(), start=path.parent.resolve()))
+
+
+def __is_shared_file(target: str, shared_dir: str) -> bool:
+    """判断前缀中的路径是否（通过符号链接）指向共享目录"""
+    real_target = os.path.realpath(target)
+    real_shared = os.path.realpath(shared_dir)
+    return real_target == real_shared or real_target.startswith(real_shared + os.sep)
+
 
 __manifest_url = 'https://loathingkernel.github.io/proton-upscalers/manifest.json'
 __manifest_json: Union[dict, None] = None
@@ -48,7 +58,7 @@ def __get_manifest() -> dict:
             __manifest_json = json.loads(url_fd.read())
     except Exception as e:
         log.crit(f'Failed to download "{__manifest_url}"')
-        log.crit(e)
+        log.crit(str(e))
     else:
         with cached_manifest.open('w', encoding='utf-8') as manifest_fd:
             manifest_fd.write(json.dumps(__manifest_json))
@@ -59,11 +69,12 @@ def __get_manifest() -> dict:
                 __manifest_json = json.loads(manifest_fd.read())
     except Exception as e:
         log.crit(f'Failed to read cached manifest "{str(cached_manifest)}"')
-        log.crit(e)
+        log.crit(str(e))
 
     return __manifest_json  # pyright: ignore [reportReturnType]
 
 
+@lru_cache(16)
 def __get_dll_manifest(upscaler: str, version: str = 'default') -> dict:
     dlls = __get_manifest()[upscaler]
     dlls = tuple(filter(lambda dll: not dll['is_dev_file'], dlls))
@@ -96,6 +107,7 @@ __fsr4_section = 'fsr4_files'
 __opti_section = 'opti_files'
 __ffx3_section = 'ffx3_files'
 __ffx4_section = 'ffx4_files'
+__nvsl_section = 'nvsl_files'
 __version_file = 'upscaler_files'
 
 
@@ -103,7 +115,11 @@ def __get_opti_files(version: str = 'default') -> tuple[str, dict]:
     return 'drive_c/windows/system32/umu/', __get_dll_manifest('optiscaler', version)
 
 
-def __get_dlss_dlls(version: str = 'default') -> dict:
+def __get_nvsl_files(version: str = 'default') -> tuple[str, dict]:
+    return 'drive_c/windows/system32/umu/streamline/', __get_dll_manifest('streamline', version)
+
+
+def __get_dlss_dlls(version: str = 'default') -> dict[str, dict]:
     return {
         'drive_c/windows/system32/umu/nvngx_dlss.dll': __get_dll_manifest('dlss', version),
         'drive_c/windows/system32/umu/nvngx_dlssd.dll': __get_dll_manifest(
@@ -115,7 +131,7 @@ def __get_dlss_dlls(version: str = 'default') -> dict:
     }
 
 
-def __get_xess_dlls(version: str = 'default') -> dict:
+def __get_xess_dlls(version: str = 'default') -> dict[str, dict]:
     return {
         'drive_c/windows/system32/umu/libxess.dll': __get_dll_manifest('xess', version),
         'drive_c/windows/system32/umu/libxess_dx11.dll': __get_dll_manifest(
@@ -128,7 +144,7 @@ def __get_xess_dlls(version: str = 'default') -> dict:
     }
 
 
-def __get_ffx3_dlls(version: str = 'default') -> dict:
+def __get_ffx3_dlls(version: str = 'default') -> dict[str, dict]:
     return {
         'drive_c/windows/system32/umu/amd_fidelityfx_vk.dll': __get_dll_manifest(
             'fsr_31_vk', version
@@ -139,7 +155,7 @@ def __get_ffx3_dlls(version: str = 'default') -> dict:
     }
 
 
-def __get_ffx4_dlls(version: str = 'default') -> dict:
+def __get_ffx4_dlls(version: str = 'default') -> dict[str, dict]:
     return {
         'drive_c/windows/system32/umu/amd_fidelityfx_framegeneration_dx12.dll': __get_dll_manifest(
             'fsr_40_fg_dx12', version
@@ -152,7 +168,7 @@ def __get_ffx4_dlls(version: str = 'default') -> dict:
         ),
     }
 
-def __get_fsr4_dlls(version: str = 'default') -> dict:
+def __get_fsr4_dlls(version: str = 'default') -> dict[str, dict]:
     return {
         'drive_c/windows/system32/amdxcffx64.dll': __get_dll_manifest(
             'fsr_40_drv', version
@@ -160,23 +176,25 @@ def __get_fsr4_dlls(version: str = 'default') -> dict:
     }
 
 
-def __get_upscaler_items(name: str, version: str) -> tuple[dict, Callable, str]:
-    upscalers = {
-        'dlss': (__get_dlss_dlls, __download_extract_zip, __dlss_section),
-        'xess': (__get_xess_dlls, __download_extract_zip, __xess_section),
-        'fsr4': (__get_fsr4_dlls, __download_extract_zip, __fsr4_section),
-        'ffx3': (__get_ffx3_dlls, __download_extract_zip, __ffx3_section),
-        'ffx4': (__get_ffx4_dlls, __download_extract_zip, __ffx4_section),
+def _get_items(name: str, version: str) -> tuple[dict[str, dict] | tuple[str, dict], str]:
+    components = {
+        'dlss': (__get_dlss_dlls, __dlss_section),
+        'xess': (__get_xess_dlls, __xess_section),
+        'fsr4': (__get_fsr4_dlls, __fsr4_section),
+        'ffx3': (__get_ffx3_dlls, __ffx3_section),
+        'ffx4': (__get_ffx4_dlls, __ffx4_section),
+        'optiscaler': (__get_opti_files, __opti_section),
+        'streamline': (__get_nvsl_files, __nvsl_section),
     }
-    get_items, dlfunc, section = upscalers[name]
+    get_items, section = components[name]
     try:
         items = get_items(version)
     except Exception as e:
         log.crit(f'Failed to get "{name}" versions from manifest')
-        log.crit(e)
+        log.crit(str(e))
         raise e
 
-    return items, dlfunc, section
+    return items, section
 
 
 def __get_tracked_items(compat_dir: str, section: str) -> dict:
@@ -186,6 +204,9 @@ def __get_tracked_items(compat_dir: str, section: str) -> dict:
             data = file_fd.read()
         tracked_versions = json.loads(data)
         tracked_versions = tracked_versions[section]
+    except KeyError as e:
+        log.warn(f'Section "{section}" not found in "{tracking_file}"')
+        raise e
     except Exception as e:
         log.warn(f'Error while reading version file "{tracking_file}"')
         raise e
@@ -199,7 +220,7 @@ def __set_tracked_items(compat_dir: str, section: str, checksums: dict) -> None:
         with open(tracking_file, encoding='utf-8') as file_fd:
             data = file_fd.read()
         local_versions = json.loads(data)
-    except Exception as e:
+    except Exception:
         log.warn(f'Error while reading version file "{tracking_file}"')
         local_versions = {}
 
@@ -210,15 +231,21 @@ def __set_tracked_items(compat_dir: str, section: str, checksums: dict) -> None:
 
 
 def __check_upscaler_file(
-    prefix_dir: str, dst: str, remote_item: dict, tracked_item: dict, ignore_version: bool, shared_dir: str
+    prefix_dir: str,
+    dst: str,
+    remote: dict,
+    tracked: dict,
+    ignore_version: bool,
+    shared_dir: str,
 ) -> bool:
     target = os.path.join(prefix_dir, dst)
 
+    # 前缀中的文件必须是有效的、指向共享目录的符号链接
     if os.path.islink(target):
         if not os.path.exists(target):
             log.warn(f'Broken symlink "{dst}"')
             return False
-        if not os.path.realpath(target).startswith(shared_dir):
+        if not __is_shared_file(target, shared_dir):
             log.warn(f'Symlink "{dst}" does not point to shared directory')
             return False
     elif os.path.exists(target):
@@ -233,7 +260,7 @@ def __check_upscaler_file(
         dst_md5 = hashlib.md5(dst_fd.read()).hexdigest().lower()
 
     # Then check if the file matches the one recorded in the tracking file
-    tracked_md5 = tracked_item['md5_hash']
+    tracked_md5 = tracked['md5_hash']
     if tracked_md5 and dst_md5 != tracked_md5.lower():
         log.warn(f'MD5 checksum mismatch between tracking file and prefix "{dst}"')
         return False
@@ -241,10 +268,10 @@ def __check_upscaler_file(
     # If we don't want to ignore the update
     # We ignore updates in the validation check after the downloads
     if not ignore_version:
-        if tracked_item['version'] != remote_item['version']:
+        if tracked['version'] != remote['version']:
             log.warn(f'Version mismatch between tracking file and prefix "{dst}"')
             return False
-        item_md5 = remote_item.get('md5_hash', '')
+        item_md5 = remote.get('md5_hash', '')
         if item_md5 and dst_md5 != item_md5.lower():
             log.warn(f'MD5 checksum mismatch between manifest and prefix "{dst}"')
             return False
@@ -263,11 +290,18 @@ def __check_upscaler_files(
         for dst in remote_items.keys():
             _ = tracked_items[dst].get('md5_hash')
     except Exception as e:
-        log.warn(e)
+        log.warn(str(e))
         return False
 
     valid_files = tuple(
-        __check_upscaler_file(prefix_dir, dst, remote_items[dst], tracked_items[dst], ignore_version, shared_dir)
+        __check_upscaler_file(
+            prefix_dir,
+            dst,
+            remote_items[dst],
+            tracked_items[dst],
+            ignore_version,
+            shared_dir,
+        )
         for dst in remote_items.keys()
     )
 
@@ -289,7 +323,9 @@ def check_upscaler(
     ignore_version: ignore version mismatch but still check if the dlls are present
     """
     try:
-        items, _, section = __get_upscaler_items(name, version)
+        items, section = _get_items(name, version)
+        if not isinstance(items, dict):
+            raise RuntimeError(f'got return type {type(items).__name__}, expected dict')
     except Exception:
         return False
 
@@ -302,60 +338,51 @@ def check_upscaler(
     )
 
 
-def check_optiscaler(
+def __check_component_files(
     compat_dir: str,
     prefix_dir: str,
-    version: str = 'default',
-    *,
+    path: str,
+    remote_item: dict,
+    section: str,
     ignore_version: bool = False,
 ) -> bool:
-    """Check for optiscaler files and its version
+    """Check for component files and its version
 
-    version: the version of the optiscaler to download
+    version: the version of the component to download
     ignore_version: ignore version mismatch but still check if the files are present
     """
+    shared_dir = str(__get_upscaler_dir(compat_dir))
     try:
-        path, item = __get_opti_files(version)
-    except Exception as e:
-        log.crit('Failed to get "optiscaler" versions from manifest')
-        log.crit(e)
-        return False
-
-    try:
-        tracked_items = __get_tracked_items(compat_dir, __opti_section)
+        tracked_items = __get_tracked_items(compat_dir, section)
         # test if new files and their attributes exist in the tracking file
-        for dst in [os.path.join(path, f) for f in item['md5_hash']]:
+        for dst in [os.path.join(path, f) for f in remote_item['md5_hash']]:
             _ = tracked_items[dst].get('md5_hash')
     except Exception as e:
-        log.warn(e)
+        log.warn(str(e))
         return False
 
-    shared_dir = str(__get_upscaler_dir(compat_dir))
     dst_hashes = {}
     for dst in tracked_items:
         target = os.path.join(prefix_dir, dst)
         if dst.endswith('.ini'):
-            # .ini 允许是普通文件（每容器独立）
+            # .ini 是每个容器独立的普通文件，不参与共享
             if not os.path.isfile(target):
                 log.warn(f'Missing config file from prefix "{dst}"')
                 return False
+        elif os.path.islink(target):
+            # 二进制文件必须是有效的、指向共享目录的符号链接
+            if not os.path.exists(target):
+                log.warn(f'Broken symlink "{dst}"')
+                return False
+            if not __is_shared_file(target, shared_dir):
+                log.warn(f'Symlink "{dst}" does not point to shared directory')
+                return False
+        elif os.path.isfile(target):
+            log.warn(f'File "{dst}" is not a symlink, re-setup required')
+            return False
         else:
-            # 二进制文件必须是有效符号链接
-            if os.path.islink(target):
-                if not os.path.exists(target):
-                    log.warn(f'Broken symlink "{dst}"')
-                    return False
-                if not os.path.realpath(target).startswith(shared_dir):
-                    log.warn(f'Symlink "{dst}" does not point to shared directory')
-                    return False
-            elif os.path.isfile(target):
-                if os.stat(target).st_size < 1024:
-                    os.unlink(target)
-                log.warn(f'File "{dst}" is not a symlink, re-setup required')
-                return False
-            else:
-                log.warn(f'Missing file from prefix "{dst}"')
-                return False
+            log.warn(f'Missing file from prefix "{dst}"')
+            return False
         with open(target, 'rb') as dst_fd:
             dst_md5 = hashlib.md5(dst_fd.read()).hexdigest().lower()
         version_md5 = tracked_items[dst]['md5_hash']
@@ -365,16 +392,16 @@ def check_optiscaler(
         dst_hashes.update({dst: dst_md5})
 
     if not ignore_version:
-        for name in item['md5_hash']:
+        for name in remote_item['md5_hash']:
             dst = os.path.join(path, name)
             target = os.path.join(prefix_dir, dst)
             if not os.path.isfile(target):
                 log.warn(f'Missing file from prefix "{dst}"')
                 return False
-            if tracked_items[dst]['version'] != item['version']:
+            if tracked_items[dst]['version'] != remote_item['version']:
                 log.warn(f'Version mismatch between configuration and prefix "{dst}"')
                 return False
-            item_md5 = item['md5_hash'][name]
+            item_md5 = remote_item['md5_hash'][name]
             if item_md5 and dst_hashes[dst] != item_md5.lower():
                 log.warn(f'MD5 checksum mismatch between manifest and prefix "{dst}"')
                 return False
@@ -383,60 +410,36 @@ def check_optiscaler(
     return True
 
 
-def __download_upscaler_files(
+def check_component(
+    name: str,
     compat_dir: str,
     prefix_dir: str,
-    items: dict,
-    dlfunc: Callable[[dict, Path, Path], None],
-    section: str,
+    version: str = 'default',
+    *,
+    ignore_version: bool = False,
 ) -> bool:
-    """Download and install the required dlls.
+    """Check for component files and their versions
 
-    This function takes care of backing up, downloading, and installing the required dlls
-    If the download fails, it will uses the backups to revert to the previous files, otherwise
-    the backups are removed.
-
-    The downloading, caching and installation of the dlls is facilitated in the callable passed through
-    the `dlfunc` argument.
+    name: the name of the component, possible values optiscaler, streamline
+    version: the version of the component to download
+    ignore_version: ignore version mismatch but still check if the dlls are present
     """
-    shared_dir = __get_upscaler_dir(compat_dir)
-    cache_dir = config.path.cache_dir.joinpath('upscalers')
-    version = {}
-    for dst in items.keys():
-        filename = os.path.basename(dst)
-        file = shared_dir / dst
-        temp = shared_dir / (dst + '.old')
-        path = Path(prefix_dir, dst)
-        try:
-            need_download = True
-            if file.exists():
-                with open(file, 'rb') as f:
-                    existing_md5 = hashlib.md5(f.read()).hexdigest().lower()
-                expected_md5 = items[dst].get('md5_hash', '').lower()
-                if not expected_md5 or existing_md5 == expected_md5:
-                    log.info(f'Reusing shared file "{filename}"')
-                    need_download = False
-                else:
-                    file.rename(temp)
-            if need_download:
-                log.info(f'Downloading upscaler file "{filename}"')
-                file.parent.mkdir(parents=True, exist_ok=True)
-                dlfunc(items[dst], cache_dir, file)
-                temp.unlink(missing_ok=True)
-            __create_symlink(path, file)
-        except Exception as e:
-            log.crit(f'Error while downloading file "{filename}"')
-            log.crit(e)
-            file.unlink(missing_ok=True)
-            if temp.exists() or temp.is_symlink():
-                temp.rename(file)
-            return False
-        version[dst] = {
-            'version': items[dst]['version'],
-            'md5_hash': items[dst]['md5_hash'],
-        }
-    __set_tracked_items(compat_dir, section, version)
-    return True
+    try:
+        component, section = _get_items(name, version)
+        if not isinstance(component, tuple):
+            raise RuntimeError(f'got return type {type(component).__name__}, expected tuple')
+        target_path, remote_item = component
+    except Exception:
+        return False
+
+    return __check_component_files(
+        compat_dir,
+        prefix_dir,
+        target_path,
+        remote_item,
+        section,
+        ignore_version,
+    )
 
 
 def __download_file(url: str, dst: Path, *, checksum: Union[str, None] = None) -> None:
@@ -496,6 +499,66 @@ def __download_extract_zip(item: dict, cache: Path, dst: Path) -> None:
                 dst_fd.write(lzma.decompress(cached_fd.read()))
 
 
+def __download_upscaler_files(
+    compat_dir: str,
+    prefix_dir: str,
+    items: dict,
+    section: str,
+) -> bool:
+    """Download and install the required dlls.
+
+    This function takes care of backing up, downloading, and installing the required dlls
+    If the download fails, it will uses the backups to revert to the previous files, otherwise
+    the backups are removed.
+
+    The downloading, caching and installation of the dlls is facilitated in the callable passed through
+    the `dlfunc` argument.
+    """
+    shared_dir = __get_upscaler_dir(compat_dir)
+    cache_dir = config.path.cache_dir.joinpath('upscalers')
+    version = {}
+    for dst in items.keys():
+        filename = os.path.basename(dst)
+        file = shared_dir.joinpath(dst)
+        temp = shared_dir.joinpath(dst + '.old')
+        target = Path(prefix_dir, dst)
+        try:
+            # 共享目录中的文件已存在且校验一致时直接复用
+            need_download = True
+            if file.is_symlink() and not file.exists():
+                # 断链，直接删除
+                file.unlink()
+            elif file.exists():
+                with open(file, 'rb') as file_fd:
+                    existing_md5 = hashlib.md5(file_fd.read()).hexdigest().lower()
+                expected_md5 = items[dst].get('md5_hash', '')
+                expected_md5 = expected_md5.lower() if expected_md5 else ''
+                if not expected_md5 or existing_md5 == expected_md5:
+                    log.info(f'Reusing shared file "{filename}"')
+                    need_download = False
+                else:
+                    file.rename(temp)
+            if need_download:
+                log.info(f'Downloading upscaler file "{filename}"')
+                file.parent.mkdir(parents=True, exist_ok=True)
+                __download_extract_zip(items[dst], cache_dir, file)
+                temp.unlink(missing_ok=True)
+            __create_symlink(target, file)
+        except Exception as e:
+            log.crit(f'Error while downloading file "{filename}"')
+            log.crit(str(e))
+            file.unlink(missing_ok=True)
+            if temp.exists() or temp.is_symlink():
+                temp.rename(file)
+            return False
+        version[dst] = {
+            'version': items[dst]['version'],
+            'md5_hash': items[dst]['md5_hash'],
+        }
+    __set_tracked_items(compat_dir, section, version)
+    return True
+
+
 def download_upscaler(
     name: str, compat_dir: str, prefix_dir: str, version: str = 'default'
 ) -> None:
@@ -506,43 +569,43 @@ def download_upscaler(
     """
     if check_upscaler(name, compat_dir, prefix_dir, version, ignore_version=False):
         return
-    log.info(f'Failed to validate "{name.upper()}" files.')
+    log.info(f'Failed to validate {name} files.')
 
     try:
-        items, download_func, section = __get_upscaler_items(name, version)
+        items, section = _get_items(name, version)
+        if not isinstance(items, dict):
+            raise RuntimeError(f'got return type {type(items).__name__}, expected dict')
         if not __download_upscaler_files(
             compat_dir,
             prefix_dir,
             items,
-            download_func,
             section,
         ):
             raise RuntimeError
     except Exception as e:
-        log.crit(f'Failed to download {name.upper()} dlls.')
-        log.crit(e)
+        log.crit(f'Failed to download {name} dlls.')
+        log.crit(str(e))
 
 
-def download_optiscaler(
-    compat_dir: str, prefix_dir: str, version: str = 'default'
-) -> None:
+def __download_component_files(
+    compat_dir: str,
+    prefix_dir: str,
+    path: str,
+    item: dict,
+    section: str,
+) -> bool:
     """Check for optiscaler files and their versions
 
     version: the version of the upscaler dll to download
     """
-    if check_optiscaler(compat_dir, prefix_dir, version, ignore_version=False):
-        return
-    log.info('Failed to validate "optiscaler" files.')
-
     try:
-        tracked_items = __get_tracked_items(compat_dir, __opti_section)
+        tracked_items = __get_tracked_items(compat_dir, section)
     except Exception:
         tracked_items = {}
         pass
 
     try:
-        path, item = __get_opti_files(version)
-        log.info(f'Updating OptiScaler "{os.path.basename(item["version"])}"')
+        log.info(f'Updating {item["file_description"]} to "{item["version"]}"')
 
         url_path = Path(unquote(urlparse(item['download_url']).path))
         cache_dir = config.path.cache_dir.joinpath('upscalers')
@@ -551,7 +614,7 @@ def download_optiscaler(
         __cached_download(item, cached_file)
 
         shared_dir = __get_upscaler_dir(compat_dir)
-        shared_opti_dir = shared_dir / path
+        shared_opti_dir = shared_dir.joinpath(path)
         shared_opti_dir.mkdir(parents=True, exist_ok=True)
 
         for target in tracked_items:
@@ -563,13 +626,20 @@ def download_optiscaler(
                 os.unlink(local_file)
 
         with tarfile.open(cached_file, 'r:xz') as tar_fd:
-            names = tar_fd.getnames()
-            for name in names:
-                local_file = shared_opti_dir / name
+            for member in tar_fd.getmembers():
+                name = member.name
+                local_file = shared_opti_dir.joinpath(name)
+                prefix_file = Path(prefix_dir, path, name)
+                if member.isdir():
+                    # 目录在前缀中保持为真实目录，其中的文件才是符号链接
+                    if prefix_file.is_symlink():
+                        prefix_file.unlink()
+                    prefix_file.mkdir(parents=True, exist_ok=True)
+                    continue
                 if name.endswith('.ini') and local_file.exists():
-                    local_file.rename(local_file + '.old' )
-                tar_fd.extract(name, str(shared_opti_dir))
-                __create_symlink(Path(os.path.join(prefix_dir, path, name)), local_file)
+                    local_file.rename(local_file.parent.joinpath(local_file.name + '.old'))
+                tar_fd.extract(member, str(shared_opti_dir))
+                __create_symlink(prefix_file, local_file)
 
         version = {}
         for name in item['md5_hash']:
@@ -579,11 +649,42 @@ def download_optiscaler(
             }
 
     except Exception as e:
-        log.crit('Failed to download OptiScaler package.')
-        log.crit(e)
-        return
+        log.crit(f'Failed to download "{item["file_description"]}" package.')
+        log.crit(str(e))
+        return False
 
-    __set_tracked_items(compat_dir, __opti_section, version)
+    __set_tracked_items(compat_dir, section, version)
+    return True
+
+
+def download_component(
+    name: str, compat_dir: str, prefix_dir: str, version: str = 'default'
+) -> None:
+    """Check for upscaler files and their versions
+
+    name: the name of the upscaler, possible values dlss, xess, fsr3, fsr4
+    version: the version of the upscaler dll to download
+    """
+    if check_component(name, compat_dir, prefix_dir, version, ignore_version=False):
+        return
+    log.info(f'Failed to validate {name} files.')
+
+    try:
+        component, section = _get_items(name, version)
+        if not isinstance(component, tuple):
+            raise RuntimeError(f'got return type {type(component).__name__}, expected tuple')
+        target_path, remote_item = component
+        if not __download_component_files(
+            compat_dir,
+            prefix_dir,
+            target_path,
+            remote_item,
+            section,
+        ):
+            raise RuntimeError
+    except Exception as e:
+        log.crit(f'Failed to download {name} files')
+        log.crit(str(e))
 
 
 def setup_upscaler(
@@ -592,7 +693,7 @@ def setup_upscaler(
     prefix_dir: str,
     version: str,
 ) -> bool:
-    log.info(f'Setting up {name.upper()} version {version}.')
+    log.info(f'Setting up {name} version "{version}".')
     download_upscaler(name, compat_dir, prefix_dir, version)
     enabled = check_upscaler(name, compat_dir, prefix_dir, version, ignore_version=True)
     return enabled
@@ -604,9 +705,16 @@ def setup_optiscaler(
     prefix_dir: str,
     version: str,
 ) -> bool:
-    log.info(f'Setting up OptiScaler version "{version}".')
-    download_optiscaler(compat_dir, prefix_dir, version)
-    enabled = check_optiscaler(compat_dir, prefix_dir, version, ignore_version=True)
+    log.info(f'Setting up optiscaler version "{version}".')
+    download_component("optiscaler", compat_dir, prefix_dir, version)
+    enabled = check_component("optiscaler", compat_dir, prefix_dir, version, ignore_version=True)
+
+    if enabled and env.get('PROTON_OPTISCALER_STREAMLINE', '0') != '0':
+        streamline_version = get_version(env, 'PROTON_OPTISCALER_STREAMLINE', 'default')
+        log.info(f'Setting up streamline version "{streamline_version}".')
+        download_component("streamline", compat_dir, prefix_dir, streamline_version)
+    else:
+        clean_tracked_files('streamline', compat_dir, prefix_dir)
 
     if enabled and (env_config := env.get('PROTON_OPTISCALER_CONFIG', '')):
         path, _ = __get_opti_files(version)
@@ -622,7 +730,7 @@ def setup_optiscaler(
                 section, option = option_path.split('.')
             except Exception as e:
                 log.crit(f'Malformed config "{part}"')
-                log.debug(e)
+                log.debug(str(e))
                 continue
             if section in parser and option in parser[section]:
                 parser[section][option] = value
@@ -635,17 +743,17 @@ def setup_optiscaler(
     return enabled
 
 
-def clean_upscaler(
+def clean_tracked_files(
     name: str,
     compat_dir: str,
     prefix_dir: str,
 ) -> bool:
     try:
-        _, _, section = __get_upscaler_items(name, 'default')
+        _, section = _get_items(name, 'default')
     except Exception:
         return False
 
-    log.info(f'Cleaning {name.upper()} files.')
+    log.info(f'Cleaning {name} files.')
 
     try:
         tracked_items = __get_tracked_items(compat_dir, section)
@@ -692,14 +800,15 @@ def setup_upscalers(
         ('dlss', dlss_version, 'dlss' in compat_config or 'optiscaler' in compat_config),
         ('xess', xess_version, 'xess' in compat_config or 'optiscaler' in compat_config),
         # amdxcffx64 4.1.1
-        ('fsr4', fsr4_version, True),
+        ('fsr4', fsr4_version, 'fsr4' in compat_config or 'optiscaler' in compat_config),
+        # fidelityfx sdk
         ('ffx3', ffx3_version, 'ffx3' in compat_config or 'optiscaler' in compat_config),
         ('ffx4', ffx4_version, 'ffx4' in compat_config),
     )
     for upscaler in upscalers:
         name, version, enabled = upscaler
         if enabled and setup_upscaler(name, compat_dir, prefix_dir, version):
-            log.info(f'Automatic {name.upper()} upgrade enabled.')
+            log.info(f'Automatic {name} upgrade enabled.')
             upscaler_replace.add(name)
 
     if 'optiscaler' in compat_config:
@@ -707,17 +816,14 @@ def setup_upscalers(
             log.info('OptiScaler enabled.')
             if 'fsr4' in compat_config:
                 if ffx4_version in {'4.0.0', '4.0.1'}:
-                    clean_upscaler('ffx4', compat_dir, prefix_dir)
+                    clean_tracked_files('ffx4', compat_dir, prefix_dir)
                 else:
                     setup_upscaler('ffx4', compat_dir, prefix_dir, ffx4_version)
             env['WINE_OPTISCALER_NAME'] = env.get('PROTON_OPTISCALER_NAME', 'dxgi.dll')
             upscaler_replace.clear()
 
     if 'fsr4' in upscaler_replace:
-        if 'fsr4' in compat_config:
-            env['FSR4_UPGRADE'] = '1'
-        if 'mlfg' in compat_config:
-            env['MLFG_UPGRADE'] = '1'
+        pass
 
     if 'dlss' in upscaler_replace:
         env.setdefault(
